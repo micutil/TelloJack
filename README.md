@@ -41,6 +41,8 @@ TelloJackは、MicJackにTelloのコントロールの機能を組み込んだ�
 2. TelloのSSIDが見つからない場合は、**右側の"SCAN"ボタン**を押して下さい。
 3. 接続するTelloが見つかったら、**中央の"CONNECT"ボタン**を押して下さい。うまく接続できると、**"Connect to [TelloのSSID名]"**と表示されます。
 
+**重要）** もしTelloの接続にパスワードを設定している場合は、ファイル名がSSID名のテキストファイルを作成し、そのファイルの中にパスワードを記述し、そのファイルをmicroSDをM5Stack/Odroid-GOに入れておけばそのファイルに書かれているパスワードを参照して接続します。** 
+
 **＜クリックすると接続の動画が見られます＞**<BR>
 [![preview](image/facesJs2.jpg)](https://www.youtube-nocookie.com/embed/q9aXnZNxYyE)
 

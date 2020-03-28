@@ -5,11 +5,18 @@ for Tello toy drone controller program.
 [TELLOは、RYYZE社](https://www.ryzerobotics.com/jp/tello)の200g以下の軽量トーイドローンです。このドローンは、操作コマンドが公開されているため、多くの方が、操作させるプログラムを作って公開されています。
 
 TelloJackは、MicJackにTelloのコントロールの機能を組み込んだ時に、それをTelloJackと呼んでいました。今回、M5StackやOdroid-GOで動かせるようにしたものを作りましたので、同じ名称で公開しました。MicJackでESP-WROOM-02で動くようなものを作っていたんですが、インターフェースは @hsgucciさん([GitHub](https://github.com/hsgucci404/m5stack_tello), [Quitta](https://qiita.com/hsgucci/items/4571c060ece376f80db3) )のプログラムをモディファイさせて頂いております。
-
-<img src=image/accel.jpg Height =200>
-<img src=image/jsUnit.jpg Height=200>
-<img src=image/facesJs.jpg Height=314>
-<img src=image/odroidGo.jpg Height=314>
+<p>
+<table border="0">
+<tr>
+<td><img src=image/accel.jpg Height =200></td>
+<td><img src=image/jsUnit.jpg Height=200></td>
+</tr>
+<tr>
+<td><img src=image/facesJs.jpg Height=314></td>
+<td><img src=image/odroidGo.jpg Height=314></td>
+</tr>
+</table>
+</p>
 
 #### 同梱内容
 - TelloJack.ino (Arduinoのスケッチ)

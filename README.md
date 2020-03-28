@@ -21,10 +21,10 @@ TelloJackは、MicJackにTelloのコントロールの機能を組み込んだ�
 #### 同梱内容
 - TelloJack.ino (Arduinoのスケッチ)
 - binフォルダ
-	- TelloJack_Accel.bin (左上写真：Gray, fireの加速度センサーで傾けて操作します）
-	- TelloJack_JS.bin（右上写真：[JoyStickユニット](https://docs.m5stack.com/#/en/unit/joystick)をつなげて操作します）
-	- TelloJack_FacesJS.bin（左下写真：[Faces](https://docs.m5stack.com/#/en/core/face_kit)の[JoyStickモジュール](https://docs.m5stack.com/#/en/module/joystick)で操作します）
-	- TelloJack_GO.bin（右下写真：[Odroid-GO](https://www.hardkernel.com/shop/odroid-go/) arduino版）
+	- TelloJack_Accel.bin (**左上写真**：Gray, fireの加速度センサーで傾けて操作します）
+	- TelloJack_JS.bin（**右上写真**：[JoyStickユニット](https://docs.m5stack.com/#/en/unit/joystick)をつなげて操作します）
+	- TelloJack_FacesJS.bin（**左下写真**：[Faces](https://docs.m5stack.com/#/en/core/face_kit)の[JoyStickモジュール](https://docs.m5stack.com/#/en/module/joystick)で操作します）
+	- TelloJack_GO.bin（**右下写真**：[Odroid-GO](https://www.hardkernel.com/shop/odroid-go/) arduino版）
 	- TelloJack_GO.fw（[Odroid-GO](https://www.hardkernel.com/shop/odroid-go/) 純正ファームウエア版）
 - SD-Updaterフォルダ（[SD-Updater](https://github.com/tobozo/M5Stack-SD-Updater)用のjpgやjsonファイルが入っています）
 - imageフォルダ（README.md用の画像が入ってます）

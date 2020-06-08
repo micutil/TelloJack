@@ -3,6 +3,7 @@
  *   for Tello toy drone controller program.
  *   CC 4.0 BY Micono (https://github.com/micutil/TelloJack)
  *   
+ *   ver 0.2.0 2020/06/10
  *   ver 0.1.0 2020/03/28
  * 
  * Application version (download http://ijutilities.micutil.com)
@@ -33,28 +34,65 @@
  * ----------------------
  */
 
-#ifndef ARDUINO_ODROID_ESP32    // Odroid-GOで操作
-//#define useJoyStickUnit       // JoyStick Unitで操作
-//#define useGrayAccel            // 加速度センサーで操作
-#define useFacesJoyStick      // FACESのJoyStick操作
-//#define useFacesKey           //Underconstruction !!!!
+//****************
+//ボードを選択
+//****************
+//#define ARDUINO_M5Stack_Core_ESP32 //ESP32 chimera board define
+//#define ARDUINO_ODROID_ESP32
+#define ARDUINO_M5StickC_ESP32
+
+//*****************************
+//M5Stackの場合のコントローラの選択
+//*****************************
+#ifdef ARDUINO_M5Stack_Core_ESP32 
+  #include <M5Stack.h>
+  #include "M5StackUpdater.h"   //for SD updater
+  //#define useJoyStick         // JoyStick Unitで操作
+  //#define useGrayAccel        // 加速度センサーで操作
+  //#define useFacesJoyStick    // FACESのJoyStick操作
+  //#define useFacesKey         //Underconstruction !!!!
+  const int lcdW=320;
+  const int lcdH=240;
 #endif
 
-#include <M5Stack.h>
-#include "M5StackUpdater.h" //for SD updater
+//*****************************
+//M5StickCの場合のコントローラの選択
+//*****************************
+#ifdef ARDUINO_M5StickC_ESP32
+  #include <M5StickC.h>
+  #include <Preferences.h>
+  #define useM5CStick      
+  //#define useM5CJoyS        // JoyStick Unitで操作
+  //#define useHATStick     // HATのJoyStickで操作
+  #define useHATJoyC      // HATのJoyCで操作
+  const int lcdW=160;
+  const int lcdH=80;
+#endif
+
+//------------
+//Odroid用設定
+//------------
+#ifdef ARDUINO_ODROID_ESP32
+  #include <M5Stack.h>
+  #include "M5StackUpdater.h" //for SD updater
+  const int lcdW=320;
+  const int lcdH=240;
+#endif
+
 #include "Wire.h"
 #include <WiFi.h>
-#include <WiFiUdp.h>
+#include <WiFiUdp.h> //<WiFiUdp.h>
 
-//M5Stack Basic + Stick UNIT
-#ifdef useJoyStickUnit
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// M5Stack Basic + Stick UNIT
+#ifdef useJoyStick
   #define JOY_ADDR 0x52
   const String TelloJackName=" TelloJack JS ";
   const int TitleBannerColor=TFT_PURPLE;
   const String XaxisName=" Joy-X : ";
   const String YaxisName=" Joy-Y : ";
   const float jsr=1024.0/250.0;
-#endif //useJoyStickUnit
+#endif //useJoyStick
 
 //M5Stack Gray (accelerometer)
 #ifdef useGrayAccel
@@ -64,7 +102,6 @@
   const int TitleBannerColor=TFT_ORANGE;
   const String XaxisName=" Acc-X : ";
   const String YaxisName=" Acc-Y : ";
-
 #endif //useGrayAccel
 
 //M5Stack Basic or Gray + Faces Joystick
@@ -74,7 +111,6 @@
   const int TitleBannerColor=TFT_CYAN;
   const String XaxisName=" Joy-X : ";
   const String YaxisName=" Joy-Y : ";
-
 #endif //useFacesJoyStick
 
 //M5Stack Basic or Gray + Faces Cross
@@ -86,9 +122,37 @@
   const String XaxisName=" Crs-X : ";
   const String YaxisName=" Crs-Y : ";
   int plusSpeed=0;
-
 #endif //useFacesKey
 
+//M5Stack fire用
+#ifdef ARDUINO_M5STACK_FIRE
+  const int TitleBannerColor=TFT_RED;
+#endif
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// M5StickC
+#if defined(useM5CStick)
+  #if defined(useM5CJoyS)
+    #define JOY_ADDR 0x52 //useM5CJoyS
+  #elif defined(useHATStick) || defined(useHATJoyC)
+    #define JOY_ADDR 0x38
+  #endif
+  
+  const String TelloJackName="TelloJack JS";
+  const int TitleBannerColor=TFT_MAROON;
+  const String XaxisName=" X:";
+  const String YaxisName=" Y:";
+  const float jsr=1024.0/250.0;
+
+  #if defined(useHATJoyC)
+    #include "JoyC.h"
+    JoyC joyc;
+    TFT_eSprite img = TFT_eSprite(&M5.Lcd);
+    const float stickRetio=1.28f;
+  #endif
+#endif //useM5CStick
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //Odroid-GO crosskey
 #ifdef ARDUINO_ODROID_ESP32
   const String TelloJackName=" TelloJack GO ";
@@ -96,12 +160,8 @@
   const String XaxisName=" Crs-X : ";
   const String YaxisName=" Crs-Y : ";
   int plusSpeed=0;
-
 #endif //ARDUINO_ODROID_ESP32
 
-#ifdef ARDUINO_M5STACK_FIRE
-const int TitleBannerColor=TFT_RED;
-#endif
 
 void print_msg(String status_msg );
 void print_msg(String status_msg, int c);
@@ -125,22 +185,29 @@ String message = "";
 
 float xp=-100.0;
 float yp=-100.0;
-float x=0.0;
-float y=0.0;
-float r=0.0;
-float u=0.0;
-char msgx[6];
-char msgy[6];
+float xxx=0.0;
+float yyy=0.0;
+float rrr=0.0;
+float uuu=0.0;
+char msgx[10];
+char msgy[10];
 String status_msg;
 
 // for rc command string
 char command_str[20];
 
 //Stick Value 
-const int svxx=82;
-const int svyx=298;
-const int svy=35;
-const int svx=35;
+#ifdef ARDUINO_M5StickC_ESP32
+  const int svxx=55;
+  const int svyx=135;
+  const int svy=28;
+  const int svx=28;
+#else
+  const int svxx=82;
+  const int svyx=298;
+  const int svy=35;
+  const int svx=35;
+#endif
 
 //For read passowrd of TELLO SSID
 #include <FS.h>
@@ -230,7 +297,7 @@ void ScanWifiList() {
     SortSSID();//ソート
     drawWiFiList();//表示
   } else {
-    print_msg("Couldn't't find any Tello...");
+    print_msg("Couldn't find any Tello...");    
   }
 }
 
@@ -255,6 +322,82 @@ void drawWiFiList(int n) {
     drawWiFiList();
   }
 }
+
+#ifdef ARDUINO_M5StickC_ESP32
+
+String getAP(String ssid) {
+  Preferences preferences;
+  preferences.begin("wifi-config");
+  String pass=preferences.getString(ssid.c_str());
+  preferences.end();
+  return pass;
+}
+
+void putAP(String ssid, String pass) {
+  Preferences preferences;
+  preferences.begin("wifi-config");
+  preferences.putString(ssid.c_str(), pass.c_str());
+  preferences.end();
+}
+
+int tgtchrnum=0x61;//a
+String selpwd="";
+String selpwdr="";
+int selWifiMode=0;
+
+void drawWiFiPwd(int c) {
+  print_msg("PWD: "+selpwd+selpwdr,c);
+}
+
+/*
+void del1ChrPwd() {
+  if(selpwdr=="") {
+    int n=selpwd.length();
+    if(n<=1) {
+      selpwd="";
+    } else {
+      selpwd=selpwd.substring(0,n);
+    }
+  } else {
+    selpwdr="";
+  }
+  drawWiFiPwd(TFT_RED);
+}
+
+void nxtPrvChrPwd(int n) {
+  tgtchrnum+=n;
+  if(tgtchrnum<0x21) {
+    tgtchrnum=0x7E;
+  } else if(tgtchrnum>127) {
+    tgtchrnum=0x21;
+  }
+  selpwdr=String(x);
+  drawWiFiPwd(TFT_RED);
+}
+
+void add1ChrPwd() {
+  selpwd=selpwd+selpwdr;
+  selpwdr="";
+  drawWiFiPwd(TFT_RED);
+}
+*/
+
+void getPwd(int c) {
+  selpwd="";
+  if(telloTotal>0) {
+    selectTello=tellos[telloTgt].ssid;
+    selpwd=getAP(selectTello);
+  }
+  drawWiFiPwd(c);
+}
+
+void setPwd(int c) {
+  selpwd=selpwd+selpwdr;
+  putAP(selectTello,selpwd);
+  getPwd(c);
+}
+
+#endif
 
 //***************************************
 // Get password from file
@@ -289,13 +432,16 @@ bool loadApData(fs::FS &fs, const char * path) {
 
 //ファイルからSSIDとpasswordを取得して、接続してみる
 void try_Connect_to_Tello() { //{ String filename)
-  if(telloTotal<=0) return;
-  
-  Serial.println(String(selectTello+".txt"));
-  if(!loadApData(SD,(const char*)String("/"+selectTello).c_str())) {
-    Serial.println(String(selectTello+".txt"));
-    loadApData(SD,(const char*)String("/"+selectTello+".txt").c_str());
-  }
+  if(telloTotal<=0) return; 
+  //Serial.println(String(selectTello+".txt"));
+  #if defined(ARDUINO_M5Stack_Core_ESP32) || defined(ARDUINO_ODROID_ESP32)
+    if(!loadApData(SD,(const char*)String("/"+selectTello).c_str())) {
+      Serial.println(String(selectTello+".txt"));
+      loadApData(SD,(const char*)String("/"+selectTello+".txt").c_str());
+    }
+  #else
+    selectPass=getAP(selectTello);
+  #endif
   //Serial.println(selectPass);
   
   //WiFi通信の開始
@@ -412,21 +558,42 @@ void Led(int indexOfLED, int r, int g, int b){
 void drawInterface() {
   //画面表示
   //---タイトル
-  M5.Lcd.fillRect(0,0,320,30,TitleBannerColor);
-  M5.Lcd.drawCentreString(TelloJackName,160,2,4);
+  #if defined(ARDUINO_M5StickC_ESP32)
+    M5.Lcd.fillRect(0,0,lcdW,22,TitleBannerColor);
+    M5.Lcd.drawCentreString(TelloJackName,80,3,2);
 
-  //---方向矢印
-  drawConnectDisconnect(false);
-  //---方向の文字
-  //drawButtonName(1);
-  //---スティックの値
-  //drawStickValue(false);
+    //---方向矢印
+    drawConnectDisconnect(false);
+    //---方向の文字
+    //drawButtonName(1);
+    //---スティックの値
+    //drawStickValue(false);
+  
+    //---メッセージ領域
+    M5.Lcd.drawRoundRect(1,50,lcdW-2,30,4,TFT_WHITE);
+    //---メッセージのタイトル文字
+    M5.Lcd.setTextColor(TFT_CYAN,TFT_BLACK);
+    //M5.Lcd.drawCentreString("<Msg>",25,45,1);
 
-  //---メッセージ領域
-  M5.Lcd.drawRoundRect(0,180,319,30,4,TFT_WHITE);
-  //---メッセージのタイトル文字
-  M5.Lcd.setTextColor(TFT_CYAN,TFT_DARKGREEN);
-  M5.Lcd.drawCentreString("<Message>",38,170,2);
+  #else
+    M5.Lcd.fillRect(0,0,lcdW,30,TitleBannerColor);
+    M5.Lcd.drawCentreString(TelloJackName,160,2,4);
+
+    //---方向矢印
+    drawConnectDisconnect(false);
+    //---方向の文字
+    //drawButtonName(1);
+    //---スティックの値
+    //drawStickValue(false);
+  
+    //---メッセージ領域
+    M5.Lcd.drawRoundRect(0,180,lcdW-1,30,4,TFT_WHITE);
+    //---メッセージのタイトル文字
+    M5.Lcd.setTextColor(TFT_CYAN,TFT_DARKGREEN);
+    M5.Lcd.drawCentreString("<Message>",38,170,2);
+    
+  #endif
+
 }
 
 bool prvdrw=true; //前描画状況
@@ -480,12 +647,14 @@ void drawConnectDisconnect(bool b) {
   int c=TFT_LIGHTGREY;
   if(b) c=TFT_GREEN;
   
-  #ifndef ARDUINO_ODROID_ESP32
-  //---方向矢印
-  M5.Lcd.fillTriangle(159+ckposx,40+ckposy,189+ckposx,60+ckposy,129+ckposx,60+ckposy,c);
-  M5.Lcd.fillTriangle(159+ckposx,160+ckposy,189+ckposx,140+ckposy,129+ckposx,140+ckposy,c);
-  M5.Lcd.fillTriangle(269+ckposx,100+ckposy,220+ckposx,80+ckposy,220+ckposx,120+ckposy,c);
-  M5.Lcd.fillTriangle(98+ckposx,80+ckposy,98+ckposx,120+ckposy,49+ckposx,100+ckposy,c);
+  #if defined(ARDUINO_ODROID_ESP32)
+  #elif defined(ARDUINO_M5StickC_ESP32)
+  #else
+    //---方向矢印
+    M5.Lcd.fillTriangle(159+ckposx,40+ckposy,189+ckposx,60+ckposy,129+ckposx,60+ckposy,c);
+    M5.Lcd.fillTriangle(159+ckposx,160+ckposy,189+ckposx,140+ckposy,129+ckposx,140+ckposy,c);
+    M5.Lcd.fillTriangle(269+ckposx,100+ckposy,220+ckposx,80+ckposy,220+ckposx,120+ckposy,c);
+    M5.Lcd.fillTriangle(98+ckposx,80+ckposy,98+ckposx,120+ckposy,49+ckposx,100+ckposy,c);
   #endif
   
   #ifdef ARDUINO_ODROID_ESP32
@@ -499,52 +668,56 @@ void drawConnectDisconnect(bool b) {
   drawButtonName(n);
   
   //---ボタンエリア
-  M5.Lcd.fillRect(0,217,320,20,TFT_LIGHTGREY);
+  M5.Lcd.fillRect(0,217,lcdW,20,TFT_LIGHTGREY);
 
   //---ボタン文字
   if(b) {
-    #ifdef ARDUINO_ODROID_ESP32
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_RED);
-    M5.Lcd.drawCentreString(" LANDING ",5,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
-    M5.Lcd.drawCentreString(" <<- CCW ",100,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
-    M5.Lcd.drawCentreString(" CW ->> ",215,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
-    M5.Lcd.drawCentreString(" TAKE OFF ",300,220,2);
+    #if defined(ARDUINO_ODROID_ESP32)
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_RED);
+      M5.Lcd.drawCentreString(" LANDING ",5,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
+      M5.Lcd.drawCentreString(" <<- CCW ",100,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
+      M5.Lcd.drawCentreString(" CW ->> ",215,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
+      M5.Lcd.drawCentreString(" TAKE OFF ",300,220,2);
+
+    #elif defined(ARDUINO_M5StickC_ESP32)
     
     #else
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
-    M5.Lcd.drawCentreString(" TAKE OFF ",64,220,2);
-    
-    #if defined(useJoyStickUnit) || defined(useFacesJoyStick) || defined(useGrayAccel)
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
-    M5.Lcd.drawCentreString("CW/CCW_U/D",160,220,2);
-    #endif //defined(useJoyStickUnit) || defined(useFacesJoyStick) || defined(useGrayAccel)
-    
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_RED);
-    M5.Lcd.drawCentreString(" LANDING  ",250,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
+      M5.Lcd.drawCentreString(" TAKE OFF ",64,220,2);
+      
+      #if defined(useJoyStick) || defined(useFacesJoyStick) || defined(useGrayAccel)
+        M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
+        M5.Lcd.drawCentreString("CW/CCW_U/D",160,220,2);
+      #endif //defined(useJoyStick) || defined(useFacesJoyStick) || defined(useGrayAccel)
+      
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_RED);
+      M5.Lcd.drawCentreString(" LANDING  ",250,220,2);
     
     #endif
     
   } else {
-    #ifdef ARDUINO_ODROID_ESP32
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
-    M5.Lcd.drawCentreString(" PREV ",5,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_GREEN);
-    M5.Lcd.drawCentreString(" NEXT ",95,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
-    M5.Lcd.drawCentreString(" CONNECT ",220,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
-    M5.Lcd.drawCentreString(" SCAN ",300,220,2);
+    #if defined(ARDUINO_ODROID_ESP32)
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_YELLOW);
+      M5.Lcd.drawCentreString(" PREV ",5,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_GREEN);
+      M5.Lcd.drawCentreString(" NEXT ",95,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
+      M5.Lcd.drawCentreString(" CONNECT ",220,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
+      M5.Lcd.drawCentreString(" SCAN ",300,220,2);
+    
+    #elif defined(ARDUINO_M5StickC_ESP32)
     
     #else
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_GREEN);
-    M5.Lcd.drawCentreString(" NEXT ",64,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
-    M5.Lcd.drawCentreString(" CONNECT ",160,220,2);
-    M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
-    M5.Lcd.drawCentreString(" SCAN ",250,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_GREEN);
+      M5.Lcd.drawCentreString(" NEXT ",64,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_CYAN);
+      M5.Lcd.drawCentreString(" CONNECT ",160,220,2);
+      M5.Lcd.setTextColor(TFT_BLACK,TFT_MAGENTA);
+      M5.Lcd.drawCentreString(" SCAN ",250,220,2);
     
     #endif
     //print_msg("Please select A, B or C button!",TFT_YELLOW);
@@ -557,66 +730,73 @@ int drawButtonName(int n) {
   // アナログスティック押し込みボタン処理
   if( n == 0 ) {
      //---Zボタンを押しているとき 上昇下降/左右旋回
-   #if defined(useFacesKey) || defined(ARDUINO_ODROID_ESP32)
-    M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
-    M5.Lcd.drawCentreString("  UP  ",160+ckposx,64+ckposy,2);
-    M5.Lcd.drawCentreString("  DOWN  ",160+ckposx,120+ckposy,2);
+    #if defined(useFacesKey) || defined(ARDUINO_ODROID_ESP32)
+      M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+      M5.Lcd.drawCentreString("  UP  ",160+ckposx,64+ckposy,2);
+      M5.Lcd.drawCentreString("  DOWN  ",160+ckposx,120+ckposy,2);
+    #elif defined(ARDUINO_M5StickC_ESP32)
     #else
-    int c=TFT_GREEN;
-    if(n<0) c=TFT_LIGHTGREY;
-    M5.Lcd.setTextColor(TFT_BLACK,c);
-    M5.Lcd.drawCentreString("D",160+ckposx,64+ckposy-20,2);
-    M5.Lcd.drawCentreString("U",160+ckposx,120+ckposy+20,2);
-    /*
-    M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
-    M5.Lcd.drawCentreString("  DOWN  ",160+ckposx,64+ckposy,2);
-    M5.Lcd.drawCentreString("  UP  ",160+ckposx,120+ckposy,2);
-    */
+      int c=TFT_GREEN;
+      if(n<0) c=TFT_LIGHTGREY;
+      M5.Lcd.setTextColor(TFT_BLACK,c);
+      M5.Lcd.drawCentreString("D",160+ckposx,64+ckposy-20,2);
+      M5.Lcd.drawCentreString("U",160+ckposx,120+ckposy+20,2);
+      /*
+      M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+      M5.Lcd.drawCentreString("  DOWN  ",160+ckposx,64+ckposy,2);
+      M5.Lcd.drawCentreString("  UP  ",160+ckposx,120+ckposy,2);
+      */
     #endif
-    M5.Lcd.drawCentreString("  ",120+ckposx-30,92+ckposy,2);
-    M5.Lcd.drawCentreString("  ",200+ckposx+30,92+ckposy,2);
-    M5.Lcd.drawCentreString("TL",120+ckposx-30,92+ckposy,2);
-    M5.Lcd.drawCentreString("TR",200+ckposx+30,92+ckposy,2);
+
+    #if defined(ARDUINO_M5StickC_ESP32)
+    #else
+      M5.Lcd.drawCentreString("  ",120+ckposx-30,92+ckposy,2);
+      M5.Lcd.drawCentreString("  ",200+ckposx+30,92+ckposy,2);
+      M5.Lcd.drawCentreString("TL",120+ckposx-30,92+ckposy,2);
+      M5.Lcd.drawCentreString("TR",200+ckposx+30,92+ckposy,2);
     /*
     M5.Lcd.drawCentreString(" CCW",120+ckposx,92+ckposy,2);
     M5.Lcd.drawCentreString("  CW ",200+ckposx,92+ckposy,2);
     */
+    #endif
+    
   } else {
     //---押していないとき 通常表示
     #ifdef ARDUINO_ODROID_ESP32
-    //Drawing crosskey
-    M5.Lcd.fillRoundRect(120+ckposx-17,92+ckposy-7,116,30,4,TFT_LIGHTGREY);//yoko
-    M5.Lcd.fillRoundRect(160+ckposx-15,64+ckposy-8,30,86,4,TFT_LIGHTGREY);//tate
+      //Drawing crosskey
+      M5.Lcd.fillRoundRect(120+ckposx-17,92+ckposy-7,116,30,4,TFT_LIGHTGREY);//yoko
+      M5.Lcd.fillRoundRect(160+ckposx-15,64+ckposy-8,30,86,4,TFT_LIGHTGREY);//tate
     #endif
     
     #ifdef ARDUINO_ODROID_ESP32
-    drawCrossKey(0,false);
-    drawCrossKey(1,false);
-    drawCrossKey(2,false);
-    drawCrossKey(3,false);
+      drawCrossKey(0,false);
+      drawCrossKey(1,false);
+      drawCrossKey(2,false);
+      drawCrossKey(3,false);
 
+    #elif defined(ARDUINO_M5StickC_ESP32)
     #else
-    int c=TFT_GREEN;
-    if(n<0) c=TFT_LIGHTGREY;
-    
-    M5.Lcd.setTextColor(TFT_BLACK,c);
-    M5.Lcd.drawCentreString("F",160+ckposx,64+ckposy-20,2);
-    M5.Lcd.drawCentreString("B",160+ckposx,120+ckposy+20,2);
-    M5.Lcd.drawCentreString("  ",120+ckposx-30,92+ckposy,2);
-    M5.Lcd.drawCentreString("  ",200+ckposx+30,92+ckposy,2);
-    M5.Lcd.drawCentreString("L",120+ckposx-30,92+ckposy,2);
-    M5.Lcd.drawCentreString("R",200+ckposx+30,92+ckposy,2);
-    /*
-    M5.Lcd.setTextColor(c,TFT_BLACK);
-    M5.Lcd.drawCentreString("FORWARD",160+ckposx,64+ckposy,2);
-    M5.Lcd.drawCentreString("BACK",160+ckposx,120+ckposy,2);
-    M5.Lcd.drawCentreString("LEFT",120+ckposx,92+ckposy,2);
-    M5.Lcd.drawCentreString("RIGHT",200+ckposx,92+ckposy,2);
-    */
-
-    M5.Lcd.fillEllipse(160+xp*40,100-yp*26,15,15,TFT_BLACK);
-    M5.Lcd.fillEllipse(160,100,15,15,TFT_LIGHTGREY);
-    xp=yp=0;
+      int c=TFT_GREEN;
+      if(n<0) c=TFT_LIGHTGREY;
+      
+      M5.Lcd.setTextColor(TFT_BLACK,c);
+      M5.Lcd.drawCentreString("F",160+ckposx,64+ckposy-20,2);
+      M5.Lcd.drawCentreString("B",160+ckposx,120+ckposy+20,2);
+      M5.Lcd.drawCentreString("  ",120+ckposx-30,92+ckposy,2);
+      M5.Lcd.drawCentreString("  ",200+ckposx+30,92+ckposy,2);
+      M5.Lcd.drawCentreString("L",120+ckposx-30,92+ckposy,2);
+      M5.Lcd.drawCentreString("R",200+ckposx+30,92+ckposy,2);
+      /*
+      M5.Lcd.setTextColor(c,TFT_BLACK);
+      M5.Lcd.drawCentreString("FORWARD",160+ckposx,64+ckposy,2);
+      M5.Lcd.drawCentreString("BACK",160+ckposx,120+ckposy,2);
+      M5.Lcd.drawCentreString("LEFT",120+ckposx,92+ckposy,2);
+      M5.Lcd.drawCentreString("RIGHT",200+ckposx,92+ckposy,2);
+      */
+  
+      M5.Lcd.fillEllipse(160+xp*40,100-yp*26,15,15,TFT_BLACK);
+      M5.Lcd.fillEllipse(160,100,15,15,TFT_LIGHTGREY);
+      xp=yp=0;
     
     #endif
 
@@ -629,35 +809,46 @@ void drawStickValue(bool b) {
   int c=TFT_LIGHTGREY;
   if(b) c=TFT_YELLOW;
 
-  #ifdef ARDUINO_ODROID_ESP32
-  M5.Lcd.setTextColor(c,TFT_BLACK);
+  #if defined(ARDUINO_ODROID_ESP32)
+    M5.Lcd.setTextColor(c,TFT_BLACK);
+  
+    M5.Lcd.drawString("L/R=",5,svy,2);
+    sprintf(msgx," %-2.2f   ",xxx);
+    M5.Lcd.drawString(msgx,svx,svy,2);
+  
+    M5.Lcd.drawString("U/D=",85,svy,2);
+    sprintf(msgy," %-2.2f   ",uuu);
+    M5.Lcd.drawString(msgy,svx+80,svy,2);
+  
+    M5.Lcd.drawString("ROT=:",165,svy,2);
+    sprintf(msgy," %-2.2f   ",rrr);
+    M5.Lcd.drawString(msgy,svx+160,svy,2);
+  
+    M5.Lcd.drawString("F/B=",245,svy,2);
+    sprintf(msgy," %-2.2f   ",yyy);
+    M5.Lcd.drawString(msgy,svx+lcdH,svy,2);
 
-  M5.Lcd.drawString("L/R=",5,svy,2);
-  sprintf(msgx," %-2.2f   ",x);
-  M5.Lcd.drawString(msgx,svx,svy,2);
-
-  M5.Lcd.drawString("U/D=",85,svy,2);
-  sprintf(msgy," %-2.2f   ",u);
-  M5.Lcd.drawString(msgy,svx+80,svy,2);
-
-  M5.Lcd.drawString("ROT=:",165,svy,2);
-  sprintf(msgy," %-2.2f   ",r);
-  M5.Lcd.drawString(msgy,svx+160,svy,2);
-
-  M5.Lcd.drawString("F/B=",245,svy,2);
-  sprintf(msgy," %-2.2f   ",y);
-  M5.Lcd.drawString(msgy,svx+240,svy,2);
-
-
+  #elif defined(ARDUINO_M5StickC_ESP32)
+    M5.Lcd.setTextColor(c,TFT_BLACK);
+    #ifdef useHATJoyC
+    #else
+      M5.Lcd.drawCentreString(XaxisName,10,svy,2);
+      sprintf(msgx," %-2.2f   ",xxx);
+      M5.Lcd.drawCentreString(msgx,svxx,svy,2);
+      //---X, Y値の表示
+      M5.Lcd.drawCentreString(YaxisName,90,svy,2);
+      sprintf(msgy," %-2.2f   ",yyy);
+      M5.Lcd.drawCentreString(msgy,svyx,svy,2);
+    #endif
   #else
-  M5.Lcd.setTextColor(c,TFT_BLACK);
-  M5.Lcd.drawCentreString(XaxisName,20,svy,2);
-  sprintf(msgx," %-2.2f   ",x);
-  M5.Lcd.drawCentreString(msgx,svxx,svy,2);
-  //---X, Y値の表示
-  M5.Lcd.drawCentreString(YaxisName,240,svy,2);
-  sprintf(msgy," %-2.2f   ",y);
-  M5.Lcd.drawCentreString(msgy,svyx,svy,2);
+    M5.Lcd.setTextColor(c,TFT_BLACK);
+    M5.Lcd.drawCentreString(XaxisName,20,svy,2);
+    sprintf(msgx," %-2.2f   ",xxx);
+    M5.Lcd.drawCentreString(msgx,svxx,svy,2);
+    //---X, Y値の表示
+    M5.Lcd.drawCentreString(YaxisName,lcdH,svy,2);
+    sprintf(msgy," %-2.2f   ",yyy);
+    M5.Lcd.drawCentreString(msgy,svyx,svy,2);
 
   #endif
 }
@@ -676,21 +867,34 @@ void setup() {
 
   //Initialization of JoyStick unit
   //ジョイスティックの初期設定
-  #ifdef useJoyStickUnit
+  #if defined(useJoyStick)
     Wire.begin(21, 22, 400000);
+  #elif defined(useM5CStick) // || defined(useHATJoyC)
+    #if defined(useHATStick) || defined(useHATJoyC)
+      Wire.begin(0, 26, 100000);
+    #else //defined(useM5CJoyS)
+      Wire.begin(32, 33, 400000);
+    #endif
+    M5.Lcd.setRotation(1);
+    M5.Lcd.fillRect(0, 0, 80, 160, BLACK);
+    #if defined(useHATJoyC)
+      img.createSprite(80, 160);
+    #endif
   #else
     Wire.begin();
-  #endif //useJoyStickUnit
+  #endif //useJoyStick
 
-  //for SD Uploader
-  if (digitalRead(BUTTON_A_PIN) == 0) {
-    Serial.println("Will Load menu binary");
-    updateFromFS(SD);
-    ESP.restart();
-  }
+  #if defined(ARDUINO_M5Stack_Core_ESP32) || defined(ARDUINO_ODROID_ESP32)
+    //for SD Uploader
+    if (digitalRead(BUTTON_A_PIN) == 0) {
+      Serial.println("Will Load menu binary");
+      updateFromFS(SD);
+      ESP.restart();
+    }
 
-  //Access for microSD
-  if(!SD.begin()) Serial.println("File IO failed...");
+    //Access for microSD
+    if(!SD.begin()) Serial.println("File IO failed...");
+  #endif
   
   //disable the speak noise
   //dacWrite(25, 0);
@@ -732,13 +936,15 @@ uint16_t x_data;
 uint16_t y_data;
 uint8_t button_data;
 uint8_t button_prev_data=1;
+
 #ifdef ARDUINO_ODROID_ESP32
-const uint16_t plusCtrVal=512+400;
-const uint16_t minusCtrVal=512-400;
+  const uint16_t plusCtrVal=512+400;
+  const uint16_t minusCtrVal=512-400;
+#endif
+
 uint16_t u_data;
 uint16_t r_data;
-
-#endif
+uint8_t button_left;
 
 //ジョイスティック用
 #ifdef useFacesJoyStick  
@@ -765,14 +971,17 @@ void DeepSleepPowerOff() {
     //Auto power off
     if(noOpr==0) noOpr=millis();
     if (300000<millis()-noOpr) {
-      //Serial.println( "Power OFF" );
-      M5.powerOFF();
-      /*
-      M5.Lcd.setBrightness(0);
-      M5.Lcd.sleep();
-      esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_B_PIN, LOW);
-      esp_deep_sleep_start();
-      */
+      #if defined(ARDUINO_M5Stack_Core_ESP32) || defined(ARDUINO_ODROID_ESP32)
+        //Serial.println( "Power OFF" );
+        M5.powerOFF();
+        /*
+        M5.Lcd.setBrightness(0);
+        M5.Lcd.sleep();
+        esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_B_PIN, LOW);
+        esp_deep_sleep_start();
+        */
+      #else
+      #endif
     }
   }
 }
@@ -782,219 +991,523 @@ void loop() {
   //接続状況
   bool wfc=(WiFi.status()==WL_CONNECTED);
   if(wfc) {
+    //***************************
+    // 接続の場合
+    //***************************
 
+    //アクセラレーター
     #ifdef useGrayAccel
-    //x,y値の取得と表示
-    if (IMU.readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01){
-      IMU.readAccelData(IMU.accelCount);
-      IMU.getAres();
-      x = IMU.accelCount[0] * IMU.aRes;
-      y = IMU.accelCount[1] * IMU.aRes;
-      Serial.println(x);
-    }
+      //x,y値の取得と表示
+      if (IMU.readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01){
+        IMU.readAccelData(IMU.accelCount);
+        IMU.getAres();
+        xxx = IMU.accelCount[0] * IMU.aRes;
+        yyy = IMU.accelCount[1] * IMU.aRes;
+        //Serial.println(xxx);
+      }
     #endif //useGrayAccel
-    
-    #ifdef useJoyStickUnit
-    Wire.requestFrom(JOY_ADDR, 3);
-    if (Wire.available()) {
-      x_data = Wire.read(); //10-250
-      y_data = Wire.read(); //10-250
-      // Zボタン(1:押している時 0:離している時 )
-      button_data=(Wire.read()==0)?1:0;
-      
+
+    //ジョイスティック
+    #if defined(useJoyStick) || defined(useM5CJoyS) || defined(useHATStick)
+      #if defined(useHATStick) || defined(useM5CJoyS)
+      Wire.beginTransmission(JOY_ADDR);
+      Wire.write(0x02); 
+      Wire.endTransmission();
+      #endif
+      Wire.requestFrom(JOY_ADDR, 3);
+      if (Wire.available()) {
+        x_data = Wire.read(); //10-250
+        y_data = Wire.read(); //10-250
+        // Zボタン(1:押している時 0:離している時 )
+        button_data=(Wire.read()==0)?1:0;
+        
+        x_data = (uint16_t)(float)x_data*jsr;//(64.0/15.0)-(128.0/3.0);
+        y_data = (uint16_t)(float)y_data*jsr;//(64.0/15.0)-(128.0/3.0);
+  
+      }
+    #endif //useJoyStick
+
+    //HAT用JoyC
+    #ifdef useHATJoyC
+      r_data=joyc.GetX(0)*stickRetio;
+      u_data=joyc.GetY(0)*stickRetio;
+      x_data=joyc.GetX(1)*stickRetio;
+      y_data=joyc.GetY(1)*stickRetio;
+      button_left=joyc.GetPress(0);
+      button_data=joyc.GetPress(1);
+      r_data = (uint16_t)(float)r_data*jsr;//(64.0/15.0)-(128.0/3.0);
+      u_data = (uint16_t)(float)u_data*jsr;//(64.0/15.0)-(128.0/3.0);
       x_data = (uint16_t)(float)x_data*jsr;//(64.0/15.0)-(128.0/3.0);
       y_data = (uint16_t)(float)y_data*jsr;//(64.0/15.0)-(128.0/3.0);
+    #endif
 
-    }    
-    #endif //useJoyStickUnit
-    
+    //フェイス用ジョイスティック
     #ifdef useFacesJoyStick  
-    // Joystick値の取得
-    Wire.requestFrom(FACE_JOY_ADDR, 5);
-    if (Wire.available()) {
-  
-      y_data_L = Wire.read();
-      y_data_H = Wire.read();
-      x_data_L = Wire.read();
-      x_data_H = Wire.read();
-  
-      // Zボタン(0:押している時 1:離している時 )
-      button_data = Wire.read();
-  
-      x_data = x_data_H << 8 |x_data_L;
-      y_data = y_data_H << 8 |y_data_L;
-    }
+      // Joystick値の取得
+      Wire.requestFrom(FACE_JOY_ADDR, 5);
+      if (Wire.available()) {
+    
+        y_data_L = Wire.read();
+        y_data_H = Wire.read();
+        x_data_L = Wire.read();
+        x_data_H = Wire.read();
+    
+        // Zボタン(0:押している時 1:離している時 )
+        button_data = Wire.read();
+    
+        x_data = x_data_H << 8 |x_data_L;
+        y_data = y_data_H << 8 |y_data_L;
+      }
     #endif //useFacesJoyStick
-    
+
+    //フェイス用キーボード
     #ifdef useFacesKey
-    //Underconstruction !
-    x_data=y_data=512;
-    button_data=1;
-    plusSpeed=0;
-    if (digitalRead(KEYBOARD_INT) == LOW) {
-      Wire.requestFrom(KEYBOARD_I2C_ADDR, 1);  // request 1 byte from keyboard
-      while (Wire.available()) {
-        doFacesKey(Wire.read()); // receive a byte as character
-      }
-      if(x_data>512) x_data+=plusSpeed;
-      else if(x_data<512) x_data-=plusSpeed;
-      if(y_data>512) y_data+=plusSpeed;
-      else if(y_data<512) y_data-=plusSpeed;
-      
-    }
-    #endif //useFacesKey
-    
-    #ifdef ARDUINO_ODROID_ESP32
-    x_data=y_data=u_data=r_data=512;
-    if(M5.BtnA.isPressed()) { y_data=plusCtrVal; drawABbutton(0,true); }//Forward
-    else if(M5.BtnB.isPressed()) { y_data=minusCtrVal; drawABbutton(1,true); }//Back
-    else if(M5.BtnA.wasReleased()) { drawABbutton(0,false); }//Forward
-    else if(M5.BtnB.wasReleased()) { drawABbutton(1,false); }//Back
-
-    if(M5.JOY_Y.isAxisPressed() == 2) { u_data=plusCtrVal; drawCrossKey(0,true); } //Up
-    else if(M5.JOY_Y.isAxisPressed() == 1) { u_data=minusCtrVal; drawCrossKey(1,true); } //Down
-    else if(M5.JOY_Y.wasReleased()) { drawCrossKey(0,false); drawCrossKey(1,false); }//Up,down
- 
-    if(M5.JOY_X.isAxisPressed() == 2) { x_data=minusCtrVal; drawCrossKey(2,true); } //Left
-    else if(M5.JOY_X.isAxisPressed() == 1) { x_data=plusCtrVal; drawCrossKey(3,true); } //Right
-    else if(M5.JOY_X.wasReleased()) { drawCrossKey(2,false); drawCrossKey(3,false); }//Left, right
-
-    if(M5.BtnSelect.isPressed()) r_data=plusCtrVal;//cw
-    else if(M5.BtnVolume.isPressed()) r_data=minusCtrVal;//ccw
-    
-    // 0〜1024を±1.0に正規化→本家プログラムと同じ形式に
-    x = float(x_data-512) / 512.0;
-    y = float(y_data-512) / 512.0;   
-    u = float(u_data-512) / 512.0;
-    r = float(r_data-512) / 512.0;
-
-    M5.Lcd.setTextColor(TFT_YELLOW,TFT_BLACK);
-    sprintf(msgx," %-2.2f ",x); M5.Lcd.drawString(msgx,30,svy,2);
-    sprintf(msgy," %-2.2f ",u); M5.Lcd.drawString(msgy,110,svy,2);
-    sprintf(msgx," %-2.2f ",r); M5.Lcd.drawString(msgx,190,svy,2);
-    sprintf(msgy," %-2.2f ",y); M5.Lcd.drawString(msgy,270,svy,2);
-    //print_msg("Operation Start!");
-
-    //Takeoff > ボタンA処理 > START
-    if(M5.BtnStart.wasPressed() ) { //離陸
-      noOpr=millis();//print_msg("TAKE OFF"); 
-      tello_command_exec("takeoff");
-      takeOff=true;
-    }
-    //Land > ボタンC処理 > Select   
-    if(M5.BtnMenu.wasPressed()) {//着陸
-      noOpr=millis();//print_msg("LAND");
-      tello_command_exec("land");
-      takeOff=false;
-    }
-
-    // Joystick入力に応じたコマンド送信
-    if (fabs(x)> 0.3 || fabs(y)> 0.3 || fabs(u)> 0.3 || fabs(r)> 0.3) {
-      sprintf(command_str,"rc %d %d %d %d",int(x*100), int(y*100), int(u*100), int(r*100) ); // 上昇下降と旋回
-      tello_command_exec(command_str);  // rcコマンドを送信
-    } else {
-      // 傾いていない時は停止命令を送信し続ける
-      tello_command_exec("rc 0 0 0 0");//lr,fb,ud,cw
-    }
-
-    #else 
-
-    #if defined(useJoyStickUnit) || defined(useFacesJoyStick) || defined(useFacesKey)
-    // 0〜1024を±1.0に正規化→本家プログラムと同じ形式に
-    x = float(x_data-512) / 512.0;
-    y = float(y_data-512) / 512.0;
-    #endif //
-
-    if((x<xp-0.03||x>xp+0.03)||(y<yp-0.03||y>yp+0.03)) { 
-      M5.Lcd.fillEllipse(160+xp*40,100-yp*26,15,15,TFT_BLACK);
-      M5.Lcd.fillEllipse(160+x*40,100-y*26,15,15,TFT_GREEN);
-      xp=x;yp=y;
-    }
-
-    M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
-    sprintf(msgx," %-2.2f  ",x);//M5.Lcd.drawCentreString("      ",88,33,2);
-    M5.Lcd.drawCentreString(msgx,svxx,svy,2);//drawCentreString
-    sprintf(msgy," %-2.2f  ",y);//M5.Lcd.drawCentreString("      ",294,33,2);
-    M5.Lcd.drawCentreString(msgy,svyx,svy,2);
-    //print_msg("Operation Start!");
-    
-    #if defined(useGrayAccel) || defined(useJoyStickUnit) || defined(useFacesJoyStick)
-    //ボタンに応じた処理
-    // ボタンA処理
-    if(M5.BtnA.wasPressed()) {
-      //離陸
-      //print_msg("TAKE OFF"); 
-      tello_command_exec("takeoff");
-      takeOff=true;
-    }
-    // ボタンC処理    
-    if(M5.BtnC.wasPressed()) {
-      //着陸
-      noOpr=millis();//print_msg("LAND");
-      tello_command_exec("land");
-      takeOff=false;
-    }
-    #endif //defined(useJoyStickUnit) || defined(useFacesJoyStick) || defined(useGrayAccel)
-
-    
-    //ボタンB処理
-    if(M5.BtnB.isPressed()) {
-        //print_msg("CW/CCW/UP/DOWM");
-        //tello_command_exec("cw 45");
-        button_data=0;
-    }
-    if(M5.BtnB.wasReleased()) {
+      //Underconstruction !
+      x_data=y_data=512;
       button_data=1;
-    }
-    
-    // アナログスティック押し込みボタン処理
-    if( button_data != button_prev_data ) {
-      //---Zボタンを押しているとき 上昇下降/左右旋回 = 0
-      //---押していないとき 通常表示 = 1
-      button_prev_data=drawButtonName(button_data);
-    }
-    
-    // Joystick入力に応じたコマンド送信
-    if (fabs(x)> 0.3 || fabs(y)> 0.3) {
-      // 傾きx,yに応じてrcコマンドの文字列を作成
-      //ボタンZ処理
-      if( button_data == 0 ) {
-          sprintf(command_str,"rc 0 0 %d %d",int(-y*100), int(x*100) ); // 上昇下降と旋回
-      } else {
-          sprintf(command_str,"rc %d %d 0 0",int(x*100), int(y*100) ); // 左右移動と前後進
+      plusSpeed=0;
+      if (digitalRead(KEYBOARD_INT) == LOW) {
+        Wire.requestFrom(KEYBOARD_I2C_ADDR, 1);  // request 1 byte from keyboard
+        while (Wire.available()) {
+          doFacesKey(Wire.read()); // receive a byte as character
+        }
+        if(x_data>512) x_data+=plusSpeed;
+        else if(x_data<512) x_data-=plusSpeed;
+        if(y_data>512) y_data+=plusSpeed;
+        else if(y_data<512) y_data-=plusSpeed;
+        
       }
-      tello_command_exec(command_str);  // rcコマンドを送信
-    } else {
-      // 傾いていない時は停止命令を送信し続ける
-      tello_command_exec("rc 0 0 0 0");
-    }
+    #endif //useFacesKey
 
+    //-------------------------------------------
+    //オドロイドの場合
+    #if defined(ARDUINO_ODROID_ESP32)
+      x_data=y_data=u_data=r_data=512;
+      if(M5.BtnA.isPressed()) { y_data=plusCtrVal; drawABbutton(0,true); }//Forward
+      else if(M5.BtnB.isPressed()) { y_data=minusCtrVal; drawABbutton(1,true); }//Back
+      else if(M5.BtnA.wasReleased()) { drawABbutton(0,false); }//Forward
+      else if(M5.BtnB.wasReleased()) { drawABbutton(1,false); }//Back
+  
+      if(M5.JOY_Y.isAxisPressed() == 2) { u_data=plusCtrVal; drawCrossKey(0,true); } //Up
+      else if(M5.JOY_Y.isAxisPressed() == 1) { u_data=minusCtrVal; drawCrossKey(1,true); } //Down
+      else if(M5.JOY_Y.wasReleased()) { drawCrossKey(0,false); drawCrossKey(1,false); }//Up,down
+   
+      if(M5.JOY_X.isAxisPressed() == 2) { x_data=minusCtrVal; drawCrossKey(2,true); } //Left
+      else if(M5.JOY_X.isAxisPressed() == 1) { x_data=plusCtrVal; drawCrossKey(3,true); } //Right
+      else if(M5.JOY_X.wasReleased()) { drawCrossKey(2,false); drawCrossKey(3,false); }//Left, right
+  
+      if(M5.BtnSelect.isPressed()) r_data=plusCtrVal;//cw
+      else if(M5.BtnVolume.isPressed()) r_data=minusCtrVal;//ccw
+      
+      // 0〜1024を±1.0に正規化→本家プログラムと同じ形式に
+      xxx = float(x_data-512) / 512.0;
+      yyy = float(y_data-512) / 512.0;   
+      rrr = float(r_data-512) / 512.0;
+      uuu = float(u_data-512) / 512.0;
+  
+      M5.Lcd.setTextColor(TFT_YELLOW,TFT_BLACK);
+      sprintf(msgx," %-2.2f ",xxx); M5.Lcd.drawString(msgx,30,svy,2);
+      sprintf(msgy," %-2.2f ",uuu); M5.Lcd.drawString(msgy,110,svy,2);
+      sprintf(msgx," %-2.2f ",rrr); M5.Lcd.drawString(msgx,190,svy,2);
+      sprintf(msgy," %-2.2f ",yyy); M5.Lcd.drawString(msgy,270,svy,2);
+      //print_msg("Operation Start!");
+  
+      //Takeoff > ボタンA処理 > START
+      if(M5.BtnStart.wasPressed() ) { //離陸
+        noOpr=millis();//print_msg("TAKE OFF"); 
+        tello_command_exec("takeoff");
+        takeOff=true;
+      }
+      //Land > ボタンC処理 > Select   
+      if(M5.BtnMenu.wasPressed()) {//着陸
+        noOpr=millis();//print_msg("LAND");
+        tello_command_exec("land");
+        takeOff=false;
+      }
+  
+      // Joystick入力に応じたコマンド送信
+      if (fabs(xxx)> 0.3 || fabs(yyy)> 0.3 || fabs(uuu)> 0.3 || fabs(rrr)> 0.3) {
+        xxx=min(100,max(-100,(int)(xxx*100))); yyy=min(100,max(-100,(int)(yyy*100)));
+        uuu=min(100,max(-100,(int)(uuu*100))); rrr=min(100,max(-100,(int)(rrr*100)));
+        sprintf(command_str,"rc %d %d %d %d",int(xxx), int(yyy), int(uuu), int(rrr) ); // 上昇下降と旋回
+        tello_command_exec(command_str);  // rcコマンドを送信
+      } else {
+        // 傾いていない時は停止命令を送信し続ける
+        tello_command_exec("rc 0 0 0 0");//lr,fb,ud,cw
+      }
+
+    #else
+    //-------------------------------------------
+    
+      //X,Y換算
+      #if defined(useJoyStick) || defined(useFacesJoyStick) || defined(useFacesKey) || defined(useM5CStick)
+        // 0〜1024を±1.0に正規化→本家プログラムと同じ形式に
+        xxx = float(x_data-512) / 512.0;
+        yyy = float(y_data-512) / 512.0;
+      #endif //
+      #if defined(useHATJoyC)
+        rrr = float(r_data-512) / 512.0;
+        uuu = float(u_data-512) / 512.0;
+      #endif
+
+      #if defined(useM5CStick) //defined(useM5CStick) || defined(useHATJoyC)
+      #else
+        if((xxx<xp-0.03||xxx>xp+0.03)||(yyy<yp-0.03||yyy>yp+0.03)) { 
+          M5.Lcd.fillEllipse(160+xp*40,100-yp*26,15,15,TFT_BLACK);
+          M5.Lcd.fillEllipse(160+xxx*40,100-yyy*26,15,15,TFT_GREEN);
+          xp=xxx;yp=yyy;
+        }
+      #endif
+      
+      #ifdef useHATJoyC
+        M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+        sprintf(msgx,"LR: %-2.2f  ",xxx);
+        M5.Lcd.drawCentreString(msgx,svxx,svy,1);//drawCentreString
+        sprintf(msgy,"FB: %-2.2f  ",yyy);
+        M5.Lcd.drawCentreString(msgy,svyx,svy,1);
+        sprintf(msgx,"RO: %-2.2f  ",rrr);
+        M5.Lcd.drawCentreString(msgx,svxx,svy+10,1);//drawCentreString
+        sprintf(msgy,"UD: %-2.2f  ",uuu);
+        M5.Lcd.drawCentreString(msgy,svyx,svy+10,1);
+      #else
+        M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+        sprintf(msgx," %-2.2f  ",xxx);//M5.Lcd.drawCentreString("      ",88,33,2);
+        M5.Lcd.drawCentreString(msgx,svxx,svy,2);//drawCentreString
+        sprintf(msgy," %-2.2f  ",yyy);//M5.Lcd.drawCentreString("      ",294,33,2);
+        M5.Lcd.drawCentreString(msgy,svyx,svy,2);
+      #endif
+      
+      //print_msg("Operation Start!");
+      
+      #if defined(useGrayAccel) || defined(useJoyStick) || defined(useFacesJoyStick)
+        //ボタンに応じた処理
+        // ボタンA処理
+        if(M5.BtnA.wasPressed()) {
+          //離陸
+          //print_msg("TAKE OFF"); 
+          tello_command_exec("takeoff");
+          takeOff=true;
+        }
+        //ボタンB処理
+        if(M5.BtnB.isPressed()) {
+          //print_msg("CW/CCW/UP/DOWM");
+          //tello_command_exec("cw 45");
+          button_data=0;
+        }
+        if(M5.BtnB.wasReleased()) {
+          button_data=1;
+        }
+        // ボタンC処理    
+        if(M5.BtnC.wasPressed()) {
+          //着陸
+          noOpr=millis();//print_msg("LAND");
+          tello_command_exec("land");
+          takeOff=false;
+        }         
+      #endif //defined(useJoyStick) || defined(useFacesJoyStick) || defined(useGrayAccel)
+
+      #if defined(useM5CJoyS) || defined(useHATStick)
+
+        //離陸着陸
+        if(button_data==0) {
+          if(takeOff) {
+            noOpr=millis();//print_msg("LAND");
+            tello_command_exec("land");
+            takeOff=false;
+          } else {
+            tello_command_exec("takeoff");
+            takeOff=true;            
+          }
+          delay(500);
+        }
+        
+        // ボタンA処理
+        if(M5.BtnA.isPressed()) {//ボタンB処理
+           if(takeOff) {
+            //print_msg("CW/CCW/UP/DOWM");
+            //tello_command_exec("cw 45");
+            button_data=0;//0が離しているとき?
+          }
+        }
+        // ボタンA処理
+        if(M5.BtnA.wasPressed()) {
+          if(takeOff) {
+            button_data=1;//1が離しているとき?
+          } else { 
+            //離陸
+            //print_msg("TAKE OFF");
+            tello_command_exec("takeoff");
+            takeOff=true;
+          }
+        }
+        // ボタンB処理
+        if(M5.BtnB.wasPressed()) {
+          ;
+        }
+        // ボタンAxp処理
+        if(M5.Axp.GetBtnPress()==2) {//着陸
+          if(takeOff) {
+            noOpr=millis();//print_msg("LAND");
+            tello_command_exec("land");
+            takeOff=false;
+          } else {
+            WiFi.disconnect();//udp.stop();
+            ScanWifiList();
+          }
+        }
+         
+      #elif defined(useHATJoyC)
+      
+        //離陸着陸
+        if(button_data||button_left) {
+          if(takeOff) {
+            noOpr=millis();//print_msg("LAND");
+            tello_command_exec("land");
+            takeOff=false;
+          } else {
+            tello_command_exec("takeoff");
+            takeOff=true;            
+          }
+          delay(500);
+        }
+
+        // ボタンA処理
+        if(M5.BtnA.wasPressed()) {
+          if(takeOff) {
+            noOpr=millis();//print_msg("LAND");
+            tello_command_exec("land");
+            takeOff=false;
+          } else { 
+            //離陸
+            //print_msg("TAKE OFF");
+            tello_command_exec("takeoff");
+            takeOff=true;
+          }
+        }
+        // ボタンB処理
+        if(M5.BtnB.wasPressed()) {
+          ;
+        }
+        // ボタンAxp処理
+        if(M5.Axp.GetBtnPress()==2) {//着陸
+          if(takeOff) {
+            noOpr=millis();//print_msg("LAND");
+            tello_command_exec("land");
+            takeOff=false;
+          } else {
+            WiFi.disconnect();//udp.stop();
+            ScanWifiList();
+          }
+        }
+         
+      #endif
+      
+      // アナログスティック押し込みボタン処理
+      if( button_data != button_prev_data ) {
+        //---Zボタンを押しているとき 上昇下降/左右旋回 = 0
+        //---押していないとき 通常表示 = 1
+        button_prev_data=drawButtonName(button_data);
+      }
+
+      if(takeOff) {
+      // Joystick入力に応じたコマンド送信
+        #ifdef useHATJoyC
+        if (fabs(xxx)> 0.3 || fabs(yyy)> 0.3 || fabs(rrr)> 0.3 || fabs(uuu)> 0.3) {
+          xxx=min(100,max(-100,(int)(-xxx*100))); yyy=min(100,max(-100,(int)(yyy*100)));
+          uuu=min(100,max(-100,(int)(uuu*100))); rrr=min(100,max(-100,(int)(-rrr*100)));
+          sprintf(command_str,"rc %d %d %d %d",(int)xxx,(int)yyy,(int)uuu,(int)rrr ); // 上昇下降と旋回
+        #else
+        if (fabs(xxx)> 0.3 || fabs(yyy)> 0.3) {
+          // 傾きx,yに応じてrcコマンドの文字列を作成
+          xxx=min(100,max(-100,(int)(xxx*100))); yyy=(int)min(100,max(-100,(int)(yyy*100)));
+          //ボタンZ処理
+          if( button_data == 0 ) {
+              #if defined(useJoyStick) || defined(useM5CJoyS)
+                sprintf(command_str,"rc 0 0 %d %d",(int)-yyy,(int)-xxx); // 上昇下降と旋回
+              #else
+                sprintf(command_str,"rc 0 0 %d %d",(int)-yyy,(int)xxx); // 上昇下降と旋回
+              #endif
+          } else {
+              #if defined(useJoyStick) || defined(useM5CJoyS)
+                sprintf(command_str,"rc %d %d 0 0",(int)-xxx,(int)-yyy); // 左右移動と前後進
+              #else
+                sprintf(command_str,"rc %d %d 0 0",(int)xxx,(int)yyy); // 左右移動と前後進
+              #endif
+              
+          }
+        #endif
+          tello_command_exec(command_str);  // rcコマンドを送信
+        } else {
+          // 傾いていない時は停止命令を送信し続ける
+          tello_command_exec("rc 0 0 0 0");
+        }
+      }
+  
     #endif 
-
+  
     #ifdef useFacesJoyStick
-    //StickのLEDを点減
-    LedFaceJoyStick();
+      //StickのLEDを点減
+      LedFaceJoyStick();
     #endif //useFacesJoyStick
    
   } else {
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // 未接続の場合
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
     //ボタンの色
     drawConnectDisconnect(false);
 
-    #ifdef ARDUINO_ODROID_ESP32
-    if(M5.BtnMenu.wasPressed())   { drawWiFiList(-1); } //Prev
-    else if(M5.BtnVolume.wasPressed()) { drawWiFiList(1); } //Next
-    else if(M5.JOY_X.wasAxisPressed() == 2) { drawWiFiList(-1); } //Left=Prev
-    else if(M5.JOY_X.wasAxisPressed() == 1) { drawWiFiList(1); } //Right=Next
-    else if(M5.BtnSelect.wasPressed()) { try_Connect_to_Tello(); } //Connect
-    else if(M5.BtnB.wasPressed()) { try_Connect_to_Tello(); } //Connect
-    else if(M5.BtnStart.wasPressed()) { ScanWifiList(); } //Scan
-    else if(M5.BtnA.wasPressed()) { ScanWifiList(); } //Scan
-    
-    #else
-    if(M5.BtnA.wasPressed())      { drawWiFiList(1); } //Next
-    else if(M5.BtnB.wasPressed()) { try_Connect_to_Tello(); } //Selet
-    else if(M5.BtnC.wasPressed()) { ScanWifiList(); } //Rescan
-    
+    #if defined(ARDUINO_ODROID_ESP32)
+      if(M5.BtnMenu.wasPressed())   { drawWiFiList(-1); } //Prev
+      else if(M5.BtnVolume.wasPressed()) { drawWiFiList(1); } //Next
+      else if(M5.JOY_X.wasAxisPressed() == 2) { drawWiFiList(-1); } //Left=Prev
+      else if(M5.JOY_X.wasAxisPressed() == 1) { drawWiFiList(1); } //Right=Next
+      else if(M5.BtnSelect.wasPressed()) { try_Connect_to_Tello(); } //Connect
+      else if(M5.BtnB.wasPressed()) { try_Connect_to_Tello(); } //Connect
+      else if(M5.BtnStart.wasPressed()) { ScanWifiList(); } //Scan
+      else if(M5.BtnA.wasPressed()) { ScanWifiList(); } //Scan
+
+    #elif defined(ARDUINO_M5StickC_ESP32)
+
+      switch(selWifiMode) {
+        case 0://
+          if(M5.BtnB.wasPressed())      { drawWiFiList(1); } //Next
+          else if(M5.BtnA.wasPressed()) { selWifiMode=1; getPwd(TFT_WHITE); } //Pass word
+          else if(M5.Axp.GetBtnPress()==2) { ScanWifiList(); } //Rescan
+          break;
+        case 1://connect
+          if(M5.BtnB.wasPressed())      { selWifiMode=0; drawWiFiList(0); } //Cancel
+          else if(M5.BtnA.wasPressed()) { selWifiMode=0; drawWiFiList(0); try_Connect_to_Tello(); } //Selet
+          else if(M5.Axp.GetBtnPress()==2) { selWifiMode=2; getPwd(TFT_RED); } //Edit mode
+          break;
+        case 2://edit password
+          if(M5.BtnB.wasPressed())      { selWifiMode=0; drawWiFiList(0); } //Cancel
+          else if(M5.BtnA.wasPressed()) { ; } //Selet
+          else if(M5.Axp.GetBtnPress()==2) { setPwd(TFT_WHITE); selWifiMode=1; } //Finish edit mode
+          break;
+      }
+
+      if(selWifiMode==2) {
+        String sps="";
+        while(Serial.available()) {
+          char v=(char)Serial.read();
+          if(v==0xA || v==0xD) {
+            selpwd=sps;
+            drawWiFiPwd(TFT_RED);
+            break;
+          } else if(v>=0x20&&v<0x7F) {
+            sps=sps+String(v);
+          }
+        }
+      }
+      
+      #if defined(useM5CJoyS) || defined(useHATStick)
+        #if defined(useHATStick)
+        Wire.beginTransmission(JOY_ADDR);
+        Wire.write(0x02); 
+        Wire.endTransmission();
+        #endif
+        Wire.requestFrom(JOY_ADDR, 3);
+        if (Wire.available()) {
+          x_data = Wire.read(); //10-250
+          y_data = Wire.read(); //10-250
+          // Zボタン(1:押している時 0:離している時 )
+          button_data=(Wire.read()==1)?1:0;
+          /*
+          Serial.print(x_data);
+          Serial.print(" / ");
+          Serial.print(y_data);
+          Serial.print(" / ");
+          Serial.println(button_data,DEC);
+          */
+        }
+      #elif defined(useHATJoyC)  //HAT用JoyC
+        r_data=joyc.GetX(0)*stickRetio;
+        u_data=joyc.GetY(0)*stickRetio;
+        x_data=joyc.GetX(1)*stickRetio;
+        y_data=joyc.GetY(1)*stickRetio;
+        button_left=joyc.GetPress(0);
+        button_data=joyc.GetPress(1);
+        /*
+        Serial.print(x_data);
+        Serial.print(" / ");
+        Serial.print(y_data);
+        Serial.print(" / ");
+        Serial.print(button_data,DEC);
+        Serial.print(" / ");
+        Serial.print(r_data);
+        Serial.print(" / ");
+        Serial.print(u_data);
+        Serial.print(" / ");
+        Serial.println(button_left,DEC);
+        */
+      
+      #endif
+      
+      switch(selWifiMode) {
+      case 0://
+        if(button_data)      { drawWiFiList(1); delay(250); } //Next
+        else if(button_left) { drawWiFiList(-1); delay(250); } //Previous
+        break;
+      case 1://connect
+      case 2://edit password
+        if(button_data)      { selWifiMode=0; drawWiFiList(0); delay(250); } //Next
+        else if(button_left) { selWifiMode=0; drawWiFiList(0); delay(250); } //Previous
+        break;
+      }
+
+      x_data = (uint16_t)(float)x_data*jsr;//(64.0/15.0)-(128.0/3.0);
+      y_data = (uint16_t)(float)y_data*jsr;//(64.0/15.0)-(128.0/3.0);
+      xxx = float(x_data-512) / 512.0;
+      yyy = float(y_data-512) / 512.0;
+      
+      #ifdef useHATJoyC
+        r_data = (uint16_t)(float)r_data*jsr;//(64.0/15.0)-(128.0/3.0);
+        u_data = (uint16_t)(float)u_data*jsr;//(64.0/15.0)-(128.0/3.0);
+        rrr = float(r_data-512) / 512.0;
+        uuu = float(u_data-512) / 512.0;
+      #endif
+
+      #ifdef useHATJoyC
+        M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+        sprintf(msgx,"LR: %-2.2f  ",xxx);
+        M5.Lcd.drawString(msgx,svxx-40,svy,1);//drawCentreString
+        sprintf(msgy,"FB: %-2.2f  ",yyy);
+        M5.Lcd.drawString(msgy,svyx-40,svy,1);
+        sprintf(msgx,"RO: %-2.2f  ",rrr);
+        M5.Lcd.drawString(msgx,svxx-40,svy+10,1);//drawCentreString
+        sprintf(msgy,"UD: %-2.2f  ",uuu);
+        M5.Lcd.drawString(msgy,svyx-40,svy+10,1);
+      #else
+        M5.Lcd.setTextColor(TFT_WHITE,TFT_BLACK);
+        sprintf(msgx," %-2.2f  ",xxx);
+        M5.Lcd.drawCentreString(msgx,svxx,svy,2);//drawCentreString
+        sprintf(msgy," %-2.2f  ",yyy);
+        M5.Lcd.drawCentreString(msgy,svyx,svy,2);
+      #endif
+      
+      /*
+      if(selWifiMode>0) {        
+        if(button_data) {
+          if(selWifiMode==1) {
+            selWifiMode=2;
+            getPwd(TFT_RED);
+          } else if(selWifiMode==2) {
+            selWifiMode=1;
+            setPwd(TFT_WHITE);
+          }
+        }
+      }
+      */
+
+    #else //M5Stackなど
+      if(M5.BtnA.wasPressed())      { drawWiFiList(1); } //Next
+      else if(M5.BtnB.wasPressed()) { try_Connect_to_Tello(); } //Selet
+      else if(M5.BtnC.wasPressed()) { ScanWifiList(); } //Rescan
+      
     #endif
     
     takeOff=false;
@@ -1122,8 +1635,16 @@ void print_msg(String status_msg, int c) {
   if(prevmsglen>msglen) {
     status_msg=String(status_msg+brankstr).substring(0,prevmsglen);
   }
-  M5.Lcd.drawString(brankstr,6,190,2);
-  M5.Lcd.drawString(status_msg,6,190,2);
+
+  #if defined(ARDUINO_M5StickC_ESP32)
+    brankstr=brankstr.substring(0,25);
+    status_msg=status_msg.substring(0,25);
+    M5.Lcd.drawString(brankstr,6,62,1);
+    M5.Lcd.drawString(status_msg,6,62,1);
+  #else
+    M5.Lcd.drawString(brankstr,6,190,2);
+    M5.Lcd.drawString(status_msg,6,190,2);
+  #endif
   prevmsglen=msglen+3;
 }
 
@@ -1133,6 +1654,8 @@ void tello_command_exec(char* tello_command) {
   Udp.printf(tello_command);
   Udp.endPacket();
 
+  Serial.println(tello_command);
+  print_msg(tello_command);
   //message = listenMessage();  // UDP受信の関数を走らせない
 
   delay(4);//delay(10);

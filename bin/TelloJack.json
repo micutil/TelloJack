@@ -1,0 +1,50 @@
+[
+    {
+        "name": "TelloJack_Accel_M5Stack",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_Accel.bin"
+        ]
+    },
+    {
+        "name": "TelloJack_FacesJS_M5Stack",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_FacesJS.bin"
+        ]
+    },
+    {
+        "name": "TelloJack_JS_M5Stack",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_JS_M5Stack.bin"
+        ]
+    },
+    {
+        "name": "TelloJack_JS_M5StickC",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_JS_M5StickC.bin"
+        ]
+    },
+    {
+        "name": "TelloJack_JoyC_M5StickC",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_JoyC.bin"
+        ]
+    },
+    {
+        "name": "TelloJack_GO",
+        "version": "v0.2",
+        "path": "",
+        "commands": [
+			"--chip esp32 --port %port --baud %baud --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 %PATH\\TelloJack_GO.bin"
+        ]
+    },
+]
